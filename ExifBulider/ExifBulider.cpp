@@ -19,7 +19,15 @@ struct ExifTag {
 
 	// Constructor for integer values
 	ExifTag(uint16_t t, uint16_t tp, uint32_t cnt, uint32_t val)
-		: tag(t), type(tp), count(cnt), value(val) {}
+		: tag(t), type(tp), count(cnt), value(uint32ToVector(val)) {}
+
+	// Constructor for 16-bit integer values (SHORT)
+	ExifTag(uint16_t t, uint16_t tp, uint32_t cnt, uint16_t val)
+		: tag(t), type(tp), count(cnt), value(uint16ToVector(val)) {}
+
+	// Constructor for 32-bit integer values (LONG, RATIONAL)
+	ExifTag(uint16_t t, uint16_t tp, uint32_t cnt, uint32_t num, uint32_t denom)
+		: tag(t), type(tp), count(cnt), value(rationalToVector(num, denom)) {}
 
 	// Constructor for string values
 	ExifTag(uint16_t t, uint16_t tp, const std::string& val)
@@ -28,6 +36,33 @@ struct ExifTag {
 	// Constructor for vector values with a count
 	ExifTag(uint16_t t, uint16_t tp, uint32_t cnt, const std::vector<uint8_t>& val)
 		: tag(t), type(tp), count(cnt), value(val) {}
+
+private:
+
+	// Helper to convert a uint16_t to a vector in big-endian format
+	static std::vector<uint8_t> uint16ToVector(uint16_t value) {
+		return { static_cast<uint8_t>((value >> 8) & 0xFF), static_cast<uint8_t>(value & 0xFF) };
+	}
+
+	// Helper to convert a uint32_t to a vector in big-endian format
+	static std::vector<uint8_t> uint32ToVector(uint32_t value) {
+		return {
+			static_cast<uint8_t>((value >> 24) & 0xFF),
+			static_cast<uint8_t>((value >> 16) & 0xFF),
+			static_cast<uint8_t>((value >> 8) & 0xFF),
+			static_cast<uint8_t>(value & 0xFF)
+		};
+	}
+
+	// Helper to convert a RATIONAL (two uint32_t) to a vector in big-endian format
+	static std::vector<uint8_t> rationalToVector(uint32_t numerator, uint32_t denominator) {
+		std::vector<uint8_t> vec;
+		auto numVec = uint32ToVector(numerator);
+		auto denomVec = uint32ToVector(denominator);
+		vec.insert(vec.end(), numVec.begin(), numVec.end());
+		vec.insert(vec.end(), denomVec.begin(), denomVec.end());
+		return vec;
+	}
 };
 
 // ExifBuilder class
@@ -49,31 +84,33 @@ public:
 		exifBlob.insert(exifBlob.end(), { 'E', 'x', 'i', 'f', 0x00, 0x00 }); // "Exif" identifier and padding
 
 		// Write TIFF Header
-		writeHeader(exifBlob);
+		appendUInt16(exifBlob, 0x4D4D);  // Big-endian indicator
+		appendUInt16(exifBlob, 0x002A);  // TIFF version
+		appendUInt32(exifBlob, 0x00000008); // Offset to the first IFD
 
 		// Number of directory entries
-		writeUInt16(exifBlob, tags.size());
+		appendUInt16(exifBlob, static_cast<uint16_t>(tags.size()));
 
 		// Calculate data offset (just after IFD entries and next IFD offset)
 		size_t dataOffset = 8 + 2 + (tags.size() * 12) + 4;
 
 		// Process each tag
 		for (auto& tag : tags) {
-			writeUInt16(exifBlob, tag.tag);
-			writeUInt16(exifBlob, tag.type);
-			writeUInt32(exifBlob, tag.count);
+			appendUInt16(exifBlob, tag.tag);
+			appendUInt16(exifBlob, tag.type);
+			appendUInt32(exifBlob, tag.count);
 
 			if (tagFitsInField(tag)) {
-				writeTagValue(exifBlob, tag);
+				writeTagValue(exifBlob, tag); // Write values directly as is
 			}
 			else {
-				writeUInt32(exifBlob, dataOffset);
+				appendUInt32(exifBlob, static_cast<uint32_t>(dataOffset));
 				appendExtraData(tag, dataOffset);
 			}
 		}
 
 		// Write the next IFD offset (0 indicates no more IFDs)
-		writeUInt32(exifBlob, 0);
+		appendUInt32(exifBlob, 0);
 
 		// Append the extra data (strings, RATIONALs, etc.)
 		exifBlob.insert(exifBlob.end(), extraData.begin(), extraData.end());
@@ -87,25 +124,23 @@ public:
 	}
 
 private:
-	void writeHeader(std::vector<uint8_t>& buffer) {
-		buffer.insert(buffer.end(), { 0x4D, 0x4D, 0x00, 0x2A, 0x00, 0x00, 0x00, 0x08 });  // Big-endian, TIFF header, first IFD offset
+	// Helper function to append a 16-bit integer in big-endian format to a vector
+	void appendUInt16(std::vector<uint8_t>& vec, uint16_t value) {
+		vec.push_back((value >> 8) & 0xFF);
+		vec.push_back(value & 0xFF);
 	}
 
-	void writeUInt16(std::vector<uint8_t>& buffer, uint16_t value) {
-		buffer.push_back(value >> 8);
-		buffer.push_back(value & 0xFF);
-	}
-
-	void writeUInt32(std::vector<uint8_t>& buffer, uint32_t value) {
-		buffer.push_back(value >> 24);
-		buffer.push_back((value >> 16) & 0xFF);
-		buffer.push_back((value >> 8) & 0xFF);
-		buffer.push_back(value & 0xFF);
+	// Helper function to append a 32-bit integer in big-endian format to a vector
+	void appendUInt32(std::vector<uint8_t>& vec, uint32_t value) {
+		vec.push_back((value >> 24) & 0xFF);
+		vec.push_back((value >> 16) & 0xFF);
+		vec.push_back((value >> 8) & 0xFF);
+		vec.push_back(value & 0xFF);
 	}
 
 	void writeTagValue(std::vector<uint8_t>& buffer, const ExifTag& tag) {
 		if (std::holds_alternative<uint32_t>(tag.value)) {
-			writeUInt32(buffer, std::get<uint32_t>(tag.value));
+			appendUInt32(buffer, std::get<uint32_t>(tag.value));
 		}
 		else if (std::holds_alternative<std::string>(tag.value)) {
 			const std::string& str = std::get<std::string>(tag.value);
@@ -149,19 +184,6 @@ private:
 		}
 	}
 };
-
-// Utility function to convert a 32-bit integer to big-endian and append to a vector
-void appendUInt32ToVector(std::vector<uint8_t>& vec, uint32_t value) {
-	vec.push_back((value >> 24) & 0xFF);
-	vec.push_back((value >> 16) & 0xFF);
-	vec.push_back((value >> 8) & 0xFF);
-	vec.push_back(value & 0xFF);
-}
-// Utility function to convert a 16-bit integer to big-endian and append to a vector
-void appendUInt16ToVector(std::vector<uint8_t>& vec, uint16_t value) {
-	vec.push_back((value >> 8) & 0xFF);
-	vec.push_back(value & 0xFF);
-}
 
 ////////////////////////////////////////////////////////////////////////////////////
 /// 
@@ -237,32 +259,19 @@ int main() {
 	builder.addTag(ExifTag(0xA434, 0x0002, "F3526-MPT"));
 
 	// Add ExposureTime tag
-	std::vector<uint8_t> exposureTime;
-	appendUInt32ToVector(exposureTime, 1); // Numerator
-	appendUInt32ToVector(exposureTime, 100); // Denominator
-	builder.addTag(ExifTag(0x829A, 0x0005, 1, exposureTime));
+	builder.addTag(ExifTag(0x829A, 0x0005, 1, 1, 100));
 
 	// Add FNumber tag 5.6
-	std::vector<uint8_t> fNumber;
-	appendUInt32ToVector(fNumber, 56); // Numerator
-	appendUInt32ToVector(fNumber, 10); // Denominator
-	builder.addTag(ExifTag(0x829D, 0x0005, 1, fNumber));
+	builder.addTag(ExifTag(0x829D, 0x0005, 1, 56, 10));
 
 	// Add ISOSpeedRatings tag
-	std::vector<uint8_t> isoSpeedRatings;
-	appendUInt16ToVector(isoSpeedRatings, 200);
-	builder.addTag(ExifTag(0x8827, 0x0003, 1, isoSpeedRatings));
+	builder.addTag(ExifTag(0x8827, 0x0003, 1, uint16_t(200)));
 
 	// Add FocalLength tag
-	std::vector<uint8_t> focalLength;
-	appendUInt32ToVector(focalLength, 35); // Numerator
-	appendUInt32ToVector(focalLength,  1); // Denominator
-	builder.addTag(ExifTag(0x920A, 0x0005, 1, focalLength));
+	builder.addTag(ExifTag(0x920A, 0x0005, 1, 35, 1));
 
 	// Add FocalLengthIn35mmFormat tag
-	std::vector<uint8_t> focalLengthIn35mmFormat;
-	appendUInt16ToVector(focalLengthIn35mmFormat, 79);
-	builder.addTag(ExifTag(0xA405, 0x0003, 1, focalLengthIn35mmFormat));
+	builder.addTag(ExifTag(0xA405, 0x0003, 1, uint16_t(79)));
 
 	// Add DeteTimeOriginal/CreateDate tag
 	time_t rawtime;
@@ -279,9 +288,7 @@ int main() {
 
 	// Add Orientation tag (1 - top-left)
 	// 1 = Horizontal (normal), 3 = Rotate 180, 6 = Rotate 90 CW, 8 = Rotate 270 CW
-	std::vector<uint8_t> orientationData;
-	appendUInt16ToVector(orientationData, 8); // Orientation should be 1 (top-left)
-	builder.addTag(ExifTag(0x0112, 0x0003, 1, orientationData));
+	builder.addTag(ExifTag(0x0112, 0x0003, 1, uint16_t(8)));
 
 	// Add Copyright tag
 //	builder.addTag(ExifTag(0x8298, 0x0002, "2024 CyberAgent, Tokyo, Japan"));
