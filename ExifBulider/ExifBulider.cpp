@@ -150,6 +150,19 @@ private:
 	}
 };
 
+// Utility function to convert a 32-bit integer to big-endian and append to a vector
+void appendUInt32ToVector(std::vector<uint8_t>& vec, uint32_t value) {
+	vec.push_back((value >> 24) & 0xFF);
+	vec.push_back((value >> 16) & 0xFF);
+	vec.push_back((value >> 8) & 0xFF);
+	vec.push_back(value & 0xFF);
+}
+// Utility function to convert a 16-bit integer to big-endian and append to a vector
+void appendUInt16ToVector(std::vector<uint8_t>& vec, uint16_t value) {
+	vec.push_back((value >> 8) & 0xFF);
+	vec.push_back(value & 0xFF);
+}
+
 ////////////////////////////////////////////////////////////////////////////////////
 /// 
 
@@ -211,19 +224,6 @@ void writeNewJpegWithExif(const std::string& originalFile, const std::string& ne
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
-// Utility function to convert a 32-bit integer to big-endian and append to a vector
-void appendUInt32ToVector(std::vector<uint8_t>& vec, uint32_t value) {
-	vec.push_back((value >> 24) & 0xFF);
-	vec.push_back((value >> 16) & 0xFF);
-	vec.push_back((value >> 8) & 0xFF);
-	vec.push_back(value & 0xFF);
-}
-// Utility function to convert a 16-bit integer to big-endian and append to a vector
-void appendUInt16ToVector(std::vector<uint8_t>& vec, uint16_t value) {
-	vec.push_back((value >> 8) & 0xFF);
-	vec.push_back(value & 0xFF);
-}
-
 int main() {
 	ExifBuilder builder;
 
@@ -233,27 +233,58 @@ int main() {
 	// Add Model tag
 	builder.addTag(ExifTag(0x0110, 0x0002, "HB-25000-SB-C"));
 
-	// Add XResolution tag (300/1)
-	std::vector<uint8_t> xResolution;
-	appendUInt32ToVector(xResolution, 300); // Numerator
-	appendUInt32ToVector(xResolution, 1);   // Denominator
-	builder.addTag(ExifTag(0x011A, 0x0005, 1, xResolution));
+	// Add LensModel tag
+	builder.addTag(ExifTag(0xA434, 0x0002, "F3526-MPT"));
 
-	// Add YResolution tag (300/1)
-	std::vector<uint8_t> yResolution;
-	appendUInt32ToVector(yResolution, 300); // Numerator
-	appendUInt32ToVector(yResolution, 1);   // Denominator
-	builder.addTag(ExifTag(0x011B, 0x0005, 1, yResolution));
+	// Add ExposureTime tag
+	std::vector<uint8_t> exposureTime;
+	appendUInt32ToVector(exposureTime, 1); // Numerator
+	appendUInt32ToVector(exposureTime, 100); // Denominator
+	builder.addTag(ExifTag(0x829A, 0x0005, 1, exposureTime));
 
-	// Add ResolutionUnit tag (2 - inches)
-	std::vector<uint8_t> resolutionUnitData;
-	appendUInt16ToVector(resolutionUnitData, 2); // ResolutionUnit should be 2 (inches)
-	builder.addTag(ExifTag(0x0128, 0x0003, 1, resolutionUnitData));
+	// Add FNumber tag 5.6
+	std::vector<uint8_t> fNumber;
+	appendUInt32ToVector(fNumber, 56); // Numerator
+	appendUInt32ToVector(fNumber, 10); // Denominator
+	builder.addTag(ExifTag(0x829D, 0x0005, 1, fNumber));
 
-	// Add YCbCrPositioning tag (1 - centered)
-	std::vector<uint8_t> YCbCrPositioningData;
-	appendUInt16ToVector(YCbCrPositioningData, 1); // YCbCrPositioning should be 1 (centered)
-	builder.addTag(ExifTag(0x0213, 0x0003, 1, YCbCrPositioningData));
+	// Add ISOSpeedRatings tag
+	std::vector<uint8_t> isoSpeedRatings;
+	appendUInt16ToVector(isoSpeedRatings, 200);
+	builder.addTag(ExifTag(0x8827, 0x0003, 1, isoSpeedRatings));
+
+	// Add FocalLength tag
+	std::vector<uint8_t> focalLength;
+	appendUInt32ToVector(focalLength, 35); // Numerator
+	appendUInt32ToVector(focalLength,  1); // Denominator
+	builder.addTag(ExifTag(0x920A, 0x0005, 1, focalLength));
+
+	// Add FocalLengthIn35mmFormat tag
+	std::vector<uint8_t> focalLengthIn35mmFormat;
+	appendUInt16ToVector(focalLengthIn35mmFormat, 79);
+	builder.addTag(ExifTag(0xA405, 0x0003, 1, focalLengthIn35mmFormat));
+
+	// Add DeteTimeOriginal/CreateDate tag
+	time_t rawtime;
+	struct tm timeinfo;
+	time(&rawtime);
+	localtime_s(&timeinfo, &rawtime);
+	char timeStr[20];
+	strftime(timeStr, sizeof(timeStr), "%Y:%m:%d %H:%M:%S", &timeinfo);
+	builder.addTag(ExifTag(0x9003, 0x0002, timeStr));
+	builder.addTag(ExifTag(0x9004, 0x0002, timeStr));
+
+	// Add Software tag
+//	builder.addTag(ExifTag(0x0131, 0x0002, "ExifBuilder"));
+
+	// Add Orientation tag (1 - top-left)
+	// 1 = Horizontal (normal), 3 = Rotate 180, 6 = Rotate 90 CW, 8 = Rotate 270 CW
+	std::vector<uint8_t> orientationData;
+	appendUInt16ToVector(orientationData, 8); // Orientation should be 1 (top-left)
+	builder.addTag(ExifTag(0x0112, 0x0003, 1, orientationData));
+
+	// Add Copyright tag
+//	builder.addTag(ExifTag(0x8298, 0x0002, "2024 CyberAgent, Tokyo, Japan"));
 
 	// Build EXIF blob
 	std::vector<uint8_t> exifBlob = builder.buildExifBlob();
