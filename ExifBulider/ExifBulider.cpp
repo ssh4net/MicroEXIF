@@ -19,15 +19,15 @@ struct ExifTag {
 
     // Constructor for integer values
     ExifTag(uint16_t t, uint16_t tp, uint32_t cnt, uint32_t val)
-        : tag(t), type(tp), count(cnt), value(val) {}
+        : tag(t), type(tp), count(cnt), value(toBigEndian(val)) {}
 
     // Constructor for 16-bit integer values (SHORT)
     ExifTag(uint16_t t, uint16_t tp, uint32_t cnt, uint16_t val)
-        : tag(t), type(tp), count(cnt), value(uint16ToVector(val)) {}
+        : tag(t), type(tp), count(cnt), value(toBigEndian(val)) {}
 
     // Constructor for 32-bit integer values (LONG, RATIONAL)
     ExifTag(uint16_t t, uint16_t tp, uint32_t cnt, uint32_t num, uint32_t denom)
-        : tag(t), type(tp), count(cnt), value(rationalToVector(num, denom)) {}
+        : tag(t), type(tp), count(cnt), value(toBigEndian(num, denom)) {}
 
     // Constructor for string values
     ExifTag(uint16_t t, uint16_t tp, std::string val)
@@ -38,13 +38,13 @@ struct ExifTag {
         : tag(t), type(tp), count(cnt), value(std::move(val)) {}
 
 private:
-    // Helper to convert a uint16_t to a vector in big-endian format
-    static constexpr std::vector<uint8_t> uint16ToVector(uint16_t value) {
+    // Helper to convert a uint16_t to a big-endian vector
+    static std::vector<uint8_t> toBigEndian(uint16_t value) {
         return { static_cast<uint8_t>((value >> 8) & 0xFF), static_cast<uint8_t>(value & 0xFF) };
     }
 
-    // Helper to convert a uint32_t to a vector in big-endian format
-    static constexpr std::vector<uint8_t> uint32ToVector(uint32_t value) {
+    // Helper to convert a uint32_t to a big-endian vector
+    static std::vector<uint8_t> toBigEndian(uint32_t value) {
         return {
             static_cast<uint8_t>((value >> 24) & 0xFF),
             static_cast<uint8_t>((value >> 16) & 0xFF),
@@ -53,10 +53,10 @@ private:
         };
     }
 
-    // Helper to convert a RATIONAL (two uint32_t) to a vector in big-endian format
-    static std::vector<uint8_t> rationalToVector(uint32_t numerator, uint32_t denominator) {
-        auto numVec = uint32ToVector(numerator);
-        auto denomVec = uint32ToVector(denominator);
+    // Helper to convert a RATIONAL (two uint32_t) to a big-endian vector
+    static std::vector<uint8_t> toBigEndian(uint32_t numerator, uint32_t denominator) {
+        auto numVec = toBigEndian(numerator);
+        auto denomVec = toBigEndian(denominator);
         numVec.insert(numVec.end(), denomVec.begin(), denomVec.end());
         return numVec;
     }
@@ -121,13 +121,13 @@ public:
     }
 
 private:
-    // Helper function to append a 16-bit integer in big-endian format to a vector
+    // Corrected function to append a 16-bit integer in big-endian format to a vector
     static void appendUInt16(std::vector<uint8_t>& vec, uint16_t value) {
         vec.push_back((value >> 8) & 0xFF);
         vec.push_back(value & 0xFF);
     }
 
-    // Helper function to append a 32-bit integer in big-endian format to a vector
+    // Corrected function to append a 32-bit integer in big-endian format to a vector
     static void appendUInt32(std::vector<uint8_t>& vec, uint32_t value) {
         vec.push_back((value >> 24) & 0xFF);
         vec.push_back((value >> 16) & 0xFF);
@@ -137,13 +137,15 @@ private:
 
     void writeTagValue(std::vector<uint8_t>& buffer, const ExifTag& tag) {
         if (std::holds_alternative<uint32_t>(tag.value)) {
-            appendUInt32(buffer, std::get<uint32_t>(tag.value));
+            const auto& data = std::get<std::vector<uint8_t>>(tag.value);
+            buffer.insert(buffer.end(), data.begin(), data.end());
         }
         else if (std::holds_alternative<std::string>(tag.value)) {
             const std::string& str = std::get<std::string>(tag.value);
-            buffer.insert(buffer.end(), str.begin(), str.begin() + std::min<size_t>(4, str.size()));
-            if (str.size() < 4) {
-                buffer.insert(buffer.end(), 4 - str.size(), 0);  // Padding
+            std::vector<uint8_t> strVec(str.begin(), str.end());
+            buffer.insert(buffer.end(), strVec.begin(), strVec.end());
+            if (strVec.size() < 4) {
+                buffer.insert(buffer.end(), 4 - strVec.size(), 0);  // Padding
             }
         }
         else if (std::holds_alternative<std::vector<uint8_t>>(tag.value)) {
@@ -171,9 +173,10 @@ private:
     void appendExtraData(const ExifTag& tag, size_t& dataOffset) {
         if (std::holds_alternative<std::string>(tag.value)) {
             const std::string& str = std::get<std::string>(tag.value);
-            extraData.insert(extraData.end(), str.begin(), str.end());
+            std::vector<uint8_t> strVec(str.begin(), str.end());
+            extraData.insert(extraData.end(), strVec.begin(), strVec.end());
             extraData.push_back(0);  // Null-terminate string
-            dataOffset += str.size() + 1;
+            dataOffset += strVec.size() + 1;
         }
         else if (std::holds_alternative<std::vector<uint8_t>>(tag.value)) {
             const auto& data = std::get<std::vector<uint8_t>>(tag.value);
@@ -251,7 +254,7 @@ int main() {
 	builder.addTag(ExifTag(0x010F, 0x0002, "EVT"));
 
 	// Add Model tag
-	builder.addTag(ExifTag(0x0110, 0x0002, "HB-25000-SB-C"));
+	builder.addTag(ExifTag(0x0110, 0x0002, "HB-25000-SBC"));
 
 	// Add LensModel tag
 	builder.addTag(ExifTag(0xA434, 0x0002, "F3526-MPT"));
