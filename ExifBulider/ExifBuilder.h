@@ -76,9 +76,9 @@ public:
         exifBlob.insert(exifBlob.end(), { 'E', 'x', 'i', 'f', 0x00, 0x00 });    // "Exif" identifier and padding
 
         // Write TIFF Header
-        appendUInt16(exifBlob, bigendian ? 0x4D4D : 0x4949);  // Big-endian indicator
-        appendUInt16(exifBlob, 0x002A, bigendian);  // TIFF version
-        appendUInt32(exifBlob, 0x00000008, bigendian); // Offset to the first IFD
+        appendUInt16(exifBlob, bigendian ? 0x4D4D : 0x4949);    // Big-endian indicator
+        appendUInt16(exifBlob, 0x002A, bigendian);              // TIFF version
+        appendUInt32(exifBlob, 0x00000008, bigendian);          // Offset to the first IFD
 
         // Number of directory entries
         appendUInt16(exifBlob, static_cast<uint16_t>(tags.size()), bigendian);
