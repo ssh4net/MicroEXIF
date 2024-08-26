@@ -68,35 +68,36 @@ public:
 
     std::vector<uint8_t> buildExifBlob() {
         std::vector<uint8_t> exifBlob;
+        
+        bool bigendian = true;
 
         // Placeholder for APP1 header (to be filled in later)
         exifBlob.insert(exifBlob.end(), { 0xFF, 0xE1, 0x00, 0x00 });            // APP1 marker, length placeholder
         exifBlob.insert(exifBlob.end(), { 'E', 'x', 'i', 'f', 0x00, 0x00 });    // "Exif" identifier and padding
 
         // Write TIFF Header
-        bool bigendian = true;
         appendUInt16(exifBlob, bigendian ? 0x4D4D : 0x4949);  // Big-endian indicator
-        appendUInt16(exifBlob, bigendian ? 0x002A : 0x2000);  // TIFF version
-        appendUInt32(exifBlob, bigendian ? 0x00000008 : 0x08000000); // Offset to the first IFD
+        appendUInt16(exifBlob, 0x002A, bigendian);  // TIFF version
+        appendUInt32(exifBlob, 0x00000008, bigendian); // Offset to the first IFD
 
         // Number of directory entries
-        appendUInt16(exifBlob, static_cast<uint16_t>(tags.size()));
+        appendUInt16(exifBlob, static_cast<uint16_t>(tags.size()), bigendian);
 
         // Calculate data offset (just after IFD entries and next IFD offset)
         size_t dataOffset = 8 + 2 + (tags.size() * 12) + 4;
 
         // Process each tag
         for (auto& tag : tags) {
-            appendUInt16(exifBlob, tag.tag);
-            appendUInt16(exifBlob, tag.type);
-            appendUInt32(exifBlob, tag.count);
+            appendUInt16(exifBlob, tag.tag, bigendian);
+            appendUInt16(exifBlob, tag.type, bigendian);
+            appendUInt32(exifBlob, tag.count, bigendian);
 
             if (tagFitsInField(tag)) {
-                writeTagValue(exifBlob, tag); // Write values directly as is
+                writeTagValue(exifBlob, tag, bigendian); // Write values directly as is
             }
             else {
-                appendUInt32(exifBlob, static_cast<uint32_t>(dataOffset));
-                appendExtraData(tag, dataOffset);
+                appendUInt32(exifBlob, static_cast<uint32_t>(dataOffset), bigendian);
+                appendExtraData(tag, dataOffset, bigendian);
             }
         }
 
@@ -184,10 +185,18 @@ private:
         return false;
     }
 
-    void appendExtraData(const ExifTag& tag, size_t& dataOffset) {
-        const auto& data = tag.value;
-        extraData.insert(extraData.end(), data.begin(), data.end());
-        dataOffset += data.size();
+    void appendExtraData(const ExifTag& tag, size_t& dataOffset, bool bigendian) {
+		const auto& data = tag.value;
+		if (bigendian || tag.type == 0x0002) {
+			extraData.insert(extraData.end(), data.begin(), data.end());
+			dataOffset += data.size();
+		}
+		else {
+			for (size_t i = data.size(); i > 0; --i) {
+				extraData.push_back(data[i - 1]);
+			}
+			dataOffset += data.size();
+		}
         // add a padding 0 byte.
         if (data.size() % 2 != 0) {
             extraData.push_back(0);
