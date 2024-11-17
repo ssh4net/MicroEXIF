@@ -1,6 +1,7 @@
 # MicroEXIF c++ Library Overview
 
-The MicroEXIF library is a lightweight library for adding and EXIF metadata in JPEG files. It provides an easy way to create, configure, and inject EXIF metadata into JPEG images using a set of well-defined classes and structures.
+The MicroEXIF library is a lightweight library for generating EXIF metadata data blob. It provides an easy way to configure and create EXIF metadata.
+This library is only to generate EXIF metadata and does not support parsing or editing EXIF metadata from files.
 
 ## Core Components
 
