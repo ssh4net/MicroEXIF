@@ -54,7 +54,6 @@ Example code to find `FFDB` marker and inject EXIF blob after it:
 writeNewJpegWithExif("input.jpg", "output_exif.jpg", exifBlob.data(), exifBlob.size());
 ```
 
-##Contributing
+## Contributing
 We welcome your contributions! Please feel free to submit pull requests, feature requests, or issues to help the library get better.
-
 See contributing.md for ways to get started.
