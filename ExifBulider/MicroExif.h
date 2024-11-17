@@ -172,7 +172,8 @@ private:
             vec.push_back((value >> 16) & 0xFF);
             vec.push_back((value >> 8) & 0xFF);
             vec.push_back(value & 0xFF);
-        } else {
+		}
+		else {
 			vec.push_back(value & 0xFF);
 			vec.push_back((value >> 8) & 0xFF);
 			vec.push_back((value >> 16) & 0xFF);
