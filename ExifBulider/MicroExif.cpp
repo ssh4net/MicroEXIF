@@ -33,7 +33,7 @@ SOFTWARE.
 #include <variant>
 #include <vector>
 
-#include "ExifBuilder.h"
+#include "MicroExif.h"
 
 // Function to read a JPEG file into a dynamically allocated array
 uint8_t* readJpegFile(const std::string& filename, size_t& fileSize) {

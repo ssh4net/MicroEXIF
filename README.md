@@ -1,4 +1,4 @@
-# MicroEXIF Library Overview
+# MicroEXIF c++ Library Overview
 
 The MicroEXIF library is a lightweight library for adding and EXIF metadata in JPEG files. It provides an easy way to create, configure, and inject EXIF metadata into JPEG images using a set of well-defined classes and structures.
 
@@ -54,3 +54,7 @@ Example code to find `FFDB` marker and inject EXIF blob after it:
 writeNewJpegWithExif("input.jpg", "output_exif.jpg", exifBlob.data(), exifBlob.size());
 ```
 
+##Contributing
+We welcome your contributions! Please feel free to submit pull requests, feature requests, or issues to help the library get better.
+
+See contributing.md for ways to get started.
