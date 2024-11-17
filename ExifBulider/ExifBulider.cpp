@@ -1,17 +1,39 @@
+/*
+MIT License
+
+Copyright (c) 2025 Erium Vladlen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
 #include <cstdint>
 #include <cstring>
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <variant>
 #include <vector>
 
 #include "ExifBuilder.h"
-
-////////////////////////////////////////////////////////////////////////////////////
-/// 
 
 // Function to read a JPEG file into a dynamically allocated array
 uint8_t* readJpegFile(const std::string& filename, size_t& fileSize) {
@@ -71,30 +93,30 @@ void writeNewJpegWithExif(const std::string& originalFile, const std::string& ne
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
-int main() {
+int main(int argc, char* argv[]) {
+
+	if (argc < 2) {
+		std::cerr << "Usage: " << argv[0] << " <JPEG file>" << std::endl;
+		return 1;
+	}
+
+
 	ExifBuilder builder;
 
 	// Add Manufacturer tag
-	builder.addTag(ExifTag(0x010F, 0x0002, "EVT"));
-
+	builder.addTag(ExifTag(0x010F, 0x0002, "Ximea"));
 	// Add Model tag
-	builder.addTag(ExifTag(0x0110, 0x0002, "HB-25000-SBC"));
-
+	builder.addTag(ExifTag(0x0110, 0x0002, "MX245CG-SY-X4G3-FF"));
 	// Add LensModel tag
 	builder.addTag(ExifTag(0xA434, 0x0002, "F3526-MPT"));
-
 	// Add ExposureTime tag
 	builder.addTag(ExifTag(0x829A, 0x0005, 1, 1, 100));
-
 	// Add FNumber tag 5.6
 	builder.addTag(ExifTag(0x829D, 0x0005, 1, 56, 10));
-
 	// Add ISOSpeedRatings tag
 	builder.addTag(ExifTag(0x8827, 0x0003, 1, uint16_t(200)));
-
 	// Add FocalLength tag
 	builder.addTag(ExifTag(0x920A, 0x0005, 1, 35, 1));
-
 	// Add FocalLengthIn35mmFormat tag
 	builder.addTag(ExifTag(0xA405, 0x0003, 1, uint16_t(79)));
 
@@ -109,14 +131,14 @@ int main() {
 	builder.addTag(ExifTag(0x9004, 0x0002, timeStr));
 
 	// Add Software tag
-	builder.addTag(ExifTag(0x0131, 0x0002, "4D Capture"));
+	builder.addTag(ExifTag(0x0131, 0x0002, "V Capture"));
 
 	// Add Orientation tag (1 - top-left)
 	// 1 = Horizontal (normal), 3 = Rotate 180, 6 = Rotate 90 CW, 8 = Rotate 270 CW
 	builder.addTag(ExifTag(0x0112, 0x0003, 1, uint16_t(8)));
 
 	// Add Copyright tag
-	builder.addTag(ExifTag(0x8298, 0x0002, "2024 CyberAgent, Japan"));
+	builder.addTag(ExifTag(0x8298, 0x0002, "2024 Vlad Erium, Japan"));
 
 	// Build EXIF blob
 	std::vector<uint8_t> exifBlob = builder.buildExifBlob();
@@ -138,8 +160,14 @@ int main() {
 
 	try {
 		// Inject EXIF data into a new JPEG file
-		std::string originalFile = "x:/4DTEMP/24.08.22_13.45.15_10bit/0DC_14_2005513/000001.jpg";
-		std::string newFile = "x:/4DTEMP/24.08.22_13.45.15_10bit/0DC_14_2005513/000001_exif.jpg";
+		std::string originalFile = argv[1];
+		std::filesystem::path path = originalFile;
+		if (!std::filesystem::exists(path)) {
+			throw std::runtime_error("File not found.");
+		}
+		
+		std::string newFile = path.parent_path().string() + "/" + path.stem().string() + "_exif.jpg";
+
 		writeNewJpegWithExif(originalFile, newFile, exifBlob.data(), exifBlob.size());
 
 		std::cout << "EXIF data injected and new file created: " << newFile << std::endl;

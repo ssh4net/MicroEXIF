@@ -1,3 +1,27 @@
+/*
+MIT License
+
+Copyright (c) 2025 Erium Vladlen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
 #pragma once
 #include <vector>
 #include <cstdint>
@@ -47,6 +71,19 @@ struct ExifTag {
         std::memcpy(value.data(), &num, 4);
         std::memcpy(value.data() + 4, &denom, 4);
     }
+
+    // Constructor for SLONG (32-bit signed integer)
+    ExifTag(uint16_t t, uint16_t tp, uint32_t cnt, int32_t val)
+		: tag(t), type(tp), count(cnt), value(4) {
+		std::memcpy(value.data(), &val, 4);
+	}
+
+    // Constructor for SRATIONAL (Two 32-bit signed integers: numerator and denominator)
+    ExifTag(uint16_t t, uint16_t tp, uint32_t cnt, int32_t num, int32_t denom)
+        : tag(t), type(tp), count(cnt), value(8) {
+        std::memcpy(value.data(), &num, 4);
+        std::memcpy(value.data() + 4, &denom, 4);
+	}
 
     // Constructor for string values, copying the string into the vector
     ExifTag(uint16_t t, uint16_t tp, const std::string& val)
@@ -161,6 +198,7 @@ private:
             buffer[bufSize + (bigendian ? 0 : 1)] = tag.value[1];
             break;
         case 0x0004: // LONG
+        case 0x0009: // SLONG
             buffer.resize(bufSize + 4, 0);
             buffer[bufSize + (bigendian ? 3 : 0)] = tag.value[0];
             buffer[bufSize + (bigendian ? 2 : 1)] = tag.value[1];
@@ -175,7 +213,7 @@ private:
     }
 
     bool tagFitsInField(const ExifTag& tag) const {
-        if (tag.type == 0x0001 || tag.type == 0x0003 || tag.type == 0x0004) {
+        if (tag.type == 0x0001 || tag.type == 0x0003 || tag.type == 0x0004 || tag.type == 0x0009 ) {
             return true;
         }
         else if (tag.type == 0x0002) {
